@@ -124,19 +124,19 @@
 
             <!-- 画布左上角：当前状态、当前生态海域与水深浮标 -->
             <div class="absolute top-2 left-2 sm:top-3 sm:left-3 z-10 pointer-events-none flex flex-col gap-1 sm:gap-1.5 max-w-[calc(100%-1rem)] sm:max-w-[60%]">
-                <div id="statusBadge" class="bg-slate-950/70 backdrop-blur-md border border-white/15 rounded-xl px-2.5 py-1 sm:px-3 sm:py-1.5 text-[11px] sm:text-sm font-medium text-sky-100 shadow-lg flex items-center gap-1.5 sm:gap-2">
+                <div id="statusBadge" class="bg-slate-950/85 border border-white/15 rounded-xl px-2.5 py-1 sm:px-3 sm:py-1.5 text-[11px] sm:text-sm font-medium text-sky-100 shadow-lg flex items-center gap-1.5 sm:gap-2">
                     <span id="statusDot" class="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
                     <span id="statusText" class="truncate">左右移动探索 · 长按画布或按钮蓄力抛竿</span>
                 </div>
                 <div class="flex flex-wrap items-center gap-1 sm:gap-1.5">
-                    <div id="biomeBadge" class="bg-slate-950/65 backdrop-blur-md border border-sky-400/30 rounded-xl px-2 py-0.5 sm:px-2.5 sm:py-1 text-[10px] sm:text-[11px] text-sky-200 shadow flex items-center gap-1">
+                    <div id="biomeBadge" class="bg-slate-950/82 border border-sky-400/30 rounded-xl px-2 py-0.5 sm:px-2.5 sm:py-1 text-[10px] sm:text-[11px] text-sky-200 shadow flex items-center gap-1">
                         <span>📍</span>
                         <span id="biomeLabel">微风木栈桥 (水深适中)</span>
                     </div>
-                    <div id="depthHint" class="hidden bg-slate-950/65 backdrop-blur-md border border-amber-400/30 rounded-xl px-2 py-0.5 sm:px-2.5 sm:py-1 text-[10px] sm:text-[11px] text-amber-200 shadow">
+                    <div id="depthHint" class="hidden bg-slate-950/82 border border-amber-400/30 rounded-xl px-2 py-0.5 sm:px-2.5 sm:py-1 text-[10px] sm:text-[11px] text-amber-200 shadow">
                         落点：<span id="depthLabel">中水区</span>
                     </div>
-                    <div id="mobileEnvPill" class="md:hidden bg-slate-950/65 backdrop-blur-md border border-white/15 rounded-xl px-2 py-0.5 text-[10px] text-slate-200 shadow">
+                    <div id="mobileEnvPill" class="md:hidden bg-slate-950/82 border border-white/15 rounded-xl px-2 py-0.5 text-[10px] text-slate-200 shadow">
                         ☀️ · 稀有↑ 48%
                     </div>
                 </div>
@@ -144,7 +144,7 @@
 
             <!-- 画布顶部居中：黄金鱼潮事件横幅 -->
             <div class="absolute top-2 sm:top-3 left-1/2 -translate-x-1/2 z-20 pointer-events-none flex flex-col items-center gap-1.5 w-[94%] sm:w-auto max-w-lg">
-                <div id="goldenTideBanner" class="hidden golden-tide-banner bg-gradient-to-r from-amber-600/90 via-yellow-500/95 to-amber-600/90 backdrop-blur-md border-2 border-yellow-200 rounded-full px-3 sm:px-4 py-1 text-[11px] sm:text-sm font-extrabold text-slate-950 shadow-2xl items-center justify-center gap-1.5 sm:gap-2">
+                <div id="goldenTideBanner" class="hidden golden-tide-banner bg-gradient-to-r from-amber-600/95 via-yellow-500/95 to-amber-600/95 border-2 border-yellow-200 rounded-full px-3 sm:px-4 py-1 text-[11px] sm:text-sm font-extrabold text-slate-950 shadow-2xl items-center justify-center gap-1.5 sm:gap-2">
                     <span class="truncate">🌊✨ 黄金鱼潮降临！稀有与收益飙升</span>
                     <span id="goldenTideTime" class="px-2 py-0.5 rounded-full bg-slate-950 text-amber-300 font-mono text-[11px] sm:text-xs shrink-0">60s</span>
                 </div>
@@ -160,19 +160,19 @@
 
             <!-- 画布右上角：当前鱼饵、天气与实时概率摘要 -->
             <div class="absolute top-3 right-3 z-10 pointer-events-none hidden md:flex flex-col items-end gap-1">
-                <div class="bg-slate-950/70 backdrop-blur-md border border-white/15 rounded-xl px-3 py-1.5 text-xs text-slate-200 shadow-lg flex items-center gap-2">
+                <div class="bg-slate-950/85 border border-white/15 rounded-xl px-3 py-1.5 text-xs text-slate-200 shadow-lg flex items-center gap-2">
                     <span>天气：<b id="hudWeatherName" class="text-sky-300">☀️ 晴空微风</b></span>
                     <span class="text-slate-600">|</span>
                     <span>鱼饵：<b id="hudBaitName" class="text-amber-300">普通面团 (∞)</b></span>
                 </div>
-                <div id="hudOddsPreview" class="bg-slate-950/60 backdrop-blur-sm border border-white/10 rounded-lg px-2.5 py-1 text-[10px] text-slate-300">
+                <div id="hudOddsPreview" class="bg-slate-950/80 border border-white/10 rounded-lg px-2.5 py-1 text-[10px] text-slate-300">
                     稀有以上: 48.0% · 神话: 1.50% · 闪光率: 2.0%
                 </div>
             </div>
 
             <!-- 画布左下角：自由移动、乘船与生态钓点快速导航栏 (桌面端悬浮于画布左下) -->
             <div class="hidden sm:flex absolute bottom-3 left-3 z-20 flex-wrap items-center gap-1.5">
-                <div class="bg-slate-950/75 backdrop-blur-md border border-white/15 rounded-xl p-1 flex items-center gap-1 shadow-lg">
+                <div class="bg-slate-950/85 border border-white/15 rounded-xl p-1 flex items-center gap-1 shadow-lg">
                     <button id="btnMoveLeft" class="game-btn bg-slate-800 hover:bg-slate-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1" title="向左移动 (A / ←)">
                         <span>◀</span><span class="hidden sm:inline">左移 (A)</span>
                     </button>
@@ -185,9 +185,9 @@
                 </div>
 
                 <!-- 四大生态区快捷传送按钮 -->
-                <div id="biomeQuickJump" class="flex bg-slate-950/70 backdrop-blur-md border border-white/10 rounded-xl p-1 items-center gap-1 shadow-lg text-[11px]">
+                <div id="biomeQuickJump" class="flex bg-slate-950/82 border border-white/10 rounded-xl p-1 items-center gap-1 shadow-lg text-[11px]">
                     <button data-biome="0" class="biome-jump-btn px-2 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 transition">🌾 浅滩</button>
-                    <button data-biome="1" class="biome-jump-btn px-2 py-1 rounded-lg bg-sky-500/30 border border-sky-400/40 text-white transition">🌉 栈桥</button>
+                    <button data-biome="1" data-active="true" class="biome-jump-btn px-2 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 transition">🌉 栈桥</button>
                     <button data-biome="2" class="biome-jump-btn px-2 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 transition">🏝️ 湖心岛</button>
                     <button data-biome="3" class="biome-jump-btn px-2 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 transition">⚓ 沉船湾</button>
                 </div>
@@ -215,7 +215,7 @@
 
             <div id="mobileBiomeQuickJump" class="flex items-center gap-1 flex-1 justify-end min-w-0">
                 <button data-biome="0" class="biome-jump-btn px-1.5 py-1.5 rounded-xl bg-slate-800/80 text-slate-200 text-[10px] font-medium whitespace-nowrap transition">🌾浅滩</button>
-                <button data-biome="1" class="biome-jump-btn px-1.5 py-1.5 rounded-xl bg-sky-500/30 border border-sky-400/40 text-white text-[10px] font-bold whitespace-nowrap transition">🌉栈桥</button>
+                <button data-biome="1" data-active="true" class="biome-jump-btn px-1.5 py-1.5 rounded-xl bg-slate-800/80 text-slate-200 text-[10px] font-medium whitespace-nowrap transition">🌉栈桥</button>
                 <button data-biome="2" class="biome-jump-btn px-1.5 py-1.5 rounded-xl bg-slate-800/80 text-slate-200 text-[10px] font-medium whitespace-nowrap transition">🏝️湖心</button>
                 <button data-biome="3" class="biome-jump-btn px-1.5 py-1.5 rounded-xl bg-slate-800/80 text-slate-200 text-[10px] font-medium whitespace-nowrap transition">⚓沉船</button>
             </div>

@@ -109,12 +109,27 @@
         goldenBubbleTimer: 0,
         boundaryWarnCooldown: 0,
         lastBiomeId: null,
+        lastInBoat: null,
+        domCache: null,
+        renderCache: {
+            key: '',
+            skyGrad: null,
+            waterKey: '',
+            waterGrad: null,
+            terrainWaterY: -1,
+            sandGrad: null,
+            grassGrad: null
+        },
         dustPuffs: [],
         lastRodTipX: null
     };
 
     function clamp(v, min, max) {
         return v < min ? min : (v > max ? max : v);
+    }
+
+    function expSmoothFactor(rate, dt) {
+        return 1 - Math.exp(-rate * Math.max(0, dt || 0));
     }
 
     /**
@@ -221,17 +236,38 @@
         const wrapper = document.getElementById('canvasWrapper');
         if (!canvas || !wrapper) return;
 
+        const rect = wrapper.getBoundingClientRect();
+        const nextDpr = Math.min(window.devicePixelRatio || 1, 2);
+        const nextCw = Math.max(320, Math.floor(rect.width || 960));
+        const nextCh = Math.max(260, Math.floor(rect.height || 480));
+        const nextW = Math.floor(nextCw * nextDpr);
+        const nextH = Math.floor(nextCh * nextDpr);
+
+        if (
+            WWF.canvas === canvas &&
+            WWF.ctx &&
+            canvas.width === nextW &&
+            canvas.height === nextH &&
+            WWF.cw === nextCw &&
+            WWF.ch === nextCh &&
+            WWF.dpr === nextDpr
+        ) {
+            return;
+        }
+
         WWF.canvas = canvas;
         WWF.ctx = canvas.getContext('2d');
+        WWF.dpr = nextDpr;
+        WWF.cw = nextCw;
+        WWF.ch = nextCh;
 
-        const rect = wrapper.getBoundingClientRect();
-        WWF.dpr = Math.min(window.devicePixelRatio || 1, 2);
-        WWF.cw = Math.max(320, Math.floor(rect.width || 960));
-        WWF.ch = Math.max(260, Math.floor(rect.height || 480));
-
-        canvas.width = Math.floor(WWF.cw * WWF.dpr);
-        canvas.height = Math.floor(WWF.ch * WWF.dpr);
+        canvas.width = nextW;
+        canvas.height = nextH;
         WWF.ctx.setTransform(WWF.dpr, 0, 0, WWF.dpr, 0, 0);
+
+        scenePool.renderCache.key = '';
+        scenePool.renderCache.waterKey = '';
+        scenePool.renderCache.terrainWaterY = -1;
 
         // 约束相机在合法范围内
         if (WWF.game) {
@@ -495,38 +531,54 @@
     function syncBiomeBadgeUI(force) {
         if (!WWF.player || !WWF.getCurrentBiome) return;
         const biome = WWF.getCurrentBiome();
-        const boatBtnText = document.getElementById('boatBtnText');
-        if (boatBtnText) {
-            boatBtnText.textContent = WWF.player.inBoat ? '靠岸下船' : '乘船探索';
+        if (force || !scenePool.domCache) {
+            scenePool.domCache = {
+                boatBtnText: document.getElementById('boatBtnText'),
+                mobileBoatBtnText: document.getElementById('mobileBoatBtnText'),
+                biomeLabel: document.getElementById('biomeLabel'),
+                jumpBtns: Array.from(document.querySelectorAll('.biome-jump-btn'))
+            };
         }
-        const mobileBoatBtnText = document.getElementById('mobileBoatBtnText');
-        if (mobileBoatBtnText) {
-            mobileBoatBtnText.textContent = WWF.player.inBoat ? '靠岸' : '乘船';
+        const dom = scenePool.domCache;
+        const inBoat = Boolean(WWF.player.inBoat);
+
+        if (force || scenePool.lastInBoat !== inBoat) {
+            scenePool.lastInBoat = inBoat;
+            const desktopBoatStr = inBoat ? '靠岸下船' : '乘船探索';
+            if (dom.boatBtnText && dom.boatBtnText.textContent !== desktopBoatStr) {
+                dom.boatBtnText.textContent = desktopBoatStr;
+            }
+            const mobileBoatStr = inBoat ? '靠岸' : '乘船';
+            if (dom.mobileBoatBtnText && dom.mobileBoatBtnText.textContent !== mobileBoatStr) {
+                dom.mobileBoatBtnText.textContent = mobileBoatStr;
+            }
         }
 
         if (!biome) return;
         if (!force && scenePool.lastBiomeId === biome.id) return;
         scenePool.lastBiomeId = biome.id;
 
-        const biomeLabel = document.getElementById('biomeLabel');
-        if (biomeLabel) {
+        if (dom.biomeLabel) {
             const depthDesc = biome.baseDepthBonus === 0
                 ? '浅水草滩'
                 : (biome.baseDepthBonus === 1 ? '水深适中' : '远古深渊');
-            biomeLabel.textContent = `${biome.name} (${depthDesc})`;
+            const labelStr = `${biome.name} (${depthDesc})`;
+            if (dom.biomeLabel.textContent !== labelStr) {
+                dom.biomeLabel.textContent = labelStr;
+            }
         }
 
-        const btns = document.querySelectorAll('.biome-jump-btn');
-        btns.forEach(btn => {
+        const btns = dom.jumpBtns;
+        for (let i = 0; i < btns.length; i++) {
+            const btn = btns[i];
             const idx = Number(btn.getAttribute('data-biome'));
-            const isMobile = Boolean(btn.closest('#mobileBiomeQuickJump'));
-            const basePad = isMobile ? 'px-1.5 py-1.5 rounded-xl text-[10px] whitespace-nowrap' : 'px-2 py-1 rounded-lg';
-            if (idx === biome.index) {
-                btn.className = `biome-jump-btn ${basePad} bg-sky-500/35 border border-sky-400/60 text-white font-bold transition`;
-            } else {
-                btn.className = `biome-jump-btn ${basePad} bg-slate-800/80 hover:bg-slate-700 text-slate-200 transition`;
+            const activeVal = idx === biome.index ? 'true' : 'false';
+            if (btn.dataset) {
+                if (btn.dataset.active !== activeVal) btn.dataset.active = activeVal;
+            } else if (typeof btn.setAttribute === 'function') {
+                btn.setAttribute('data-active', activeVal);
             }
-        });
+        }
 
         if (WWF.updateOddsPreview) {
             WWF.updateOddsPreview();
@@ -680,7 +732,7 @@
             }
 
             const targetBlend = clamp(Math.abs(game.vx) / Math.max(1, maxSpeed * 0.72), 0, 1);
-            game.moveBlend = (game.moveBlend || 0) + (targetBlend - (game.moveBlend || 0)) * Math.min(1, safeDt * 12);
+            game.moveBlend = (game.moveBlend || 0) + (targetBlend - (game.moveBlend || 0)) * expSmoothFactor(12, safeDt);
         } else {
             game.vx = 0;
             game.moveBlend = Math.max(0, (game.moveBlend || 0) - safeDt * 10);
@@ -799,7 +851,7 @@
                 targetLean = ((game.vx || 0) / Math.max(1, maxSpeed)) * 0.075 + (reversingNow ? moveDirNow * 0.065 : 0);
             }
         }
-        game.bodyLean = (game.bodyLean || 0) + (targetLean - (game.bodyLean || 0)) * Math.min(1, safeDt * 12);
+        game.bodyLean = (game.bodyLean || 0) + (targetLean - (game.bodyLean || 0)) * expSmoothFactor(12, safeDt);
 
         if (typeof WWF.getRodTip === 'function') {
             const tip = WWF.getRodTip();
@@ -860,7 +912,7 @@
         }
 
         const rawLookVel = clamp((targetLookAhead - (game.cameraLookAhead || 0)) * lookGain, -maxLookSpeed, maxLookSpeed);
-        game.cameraLookAheadVel = (game.cameraLookAheadVel || 0) + (rawLookVel - (game.cameraLookAheadVel || 0)) * Math.min(1, safeDt * 7.0);
+        game.cameraLookAheadVel = (game.cameraLookAheadVel || 0) + (rawLookVel - (game.cameraLookAheadVel || 0)) * expSmoothFactor(7.0, safeDt);
         game.cameraLookAhead = (game.cameraLookAhead || 0) + game.cameraLookAheadVel * safeDt;
 
         let targetCameraX;
@@ -871,7 +923,7 @@
             targetCameraX = player.worldX + game.cameraLookAhead - WWF.cw * 0.5;
         }
         targetCameraX = Math.max(0, Math.min(maxCameraX, targetCameraX));
-        game.cameraX += (targetCameraX - game.cameraX) * Math.min(1, safeDt * (game.state === 'IDLE' ? 10.0 : 6.5));
+        game.cameraX += (targetCameraX - game.cameraX) * expSmoothFactor(game.state === 'IDLE' ? 10.0 : 6.5, safeDt);
 
         // 3. 镜头震动衰减
         game.screenShake = Math.max(0, (game.screenShake || 0) - safeDt * 15);
@@ -901,7 +953,7 @@
             }
             const targetFishDir = f.speed >= 0 ? 1 : -1;
             if (typeof f.visualDir !== 'number') f.visualDir = targetFishDir;
-            f.visualDir += (targetFishDir - f.visualDir) * Math.min(1, safeDt * 6.5);
+            f.visualDir += (targetFishDir - f.visualDir) * expSmoothFactor(6.5, safeDt);
             f.y = waterY + 22 + f.depthRatio * (waterDepth - 36);
         }
 
@@ -1266,26 +1318,31 @@
         const isStorm = weatherId === 'storm';
         const isRain = weatherId === 'rain';
 
-        // 天空三段渐变
-        const skyGrad = ctx.createLinearGradient(0, 0, 0, waterY);
-        if (isMeteor) {
-            skyGrad.addColorStop(0, '#020617');
-            skyGrad.addColorStop(0.55, '#1e1b4b');
-            skyGrad.addColorStop(1, '#0f172a');
-        } else if (isStorm) {
-            skyGrad.addColorStop(0, '#090d16');
-            skyGrad.addColorStop(0.55, '#1e293b');
-            skyGrad.addColorStop(1, '#334155');
-        } else if (isRain) {
-            skyGrad.addColorStop(0, '#1e293b');
-            skyGrad.addColorStop(0.6, '#475569');
-            skyGrad.addColorStop(1, '#64748b');
-        } else {
-            skyGrad.addColorStop(0, theme.skyTop);
-            skyGrad.addColorStop(0.55, theme.skyMid);
-            skyGrad.addColorStop(1, theme.skyBottom);
+        // 天空三段渐变 (缓存静态渐变对象)
+        const skyKey = `${waterY}|${theme.id}|${weatherId || 'sunny'}`;
+        if (scenePool.renderCache.key !== skyKey || !scenePool.renderCache.skyGrad) {
+            const skyGrad = ctx.createLinearGradient(0, 0, 0, waterY);
+            if (isMeteor) {
+                skyGrad.addColorStop(0, '#020617');
+                skyGrad.addColorStop(0.55, '#1e1b4b');
+                skyGrad.addColorStop(1, '#0f172a');
+            } else if (isStorm) {
+                skyGrad.addColorStop(0, '#090d16');
+                skyGrad.addColorStop(0.55, '#1e293b');
+                skyGrad.addColorStop(1, '#334155');
+            } else if (isRain) {
+                skyGrad.addColorStop(0, '#1e293b');
+                skyGrad.addColorStop(0.6, '#475569');
+                skyGrad.addColorStop(1, '#64748b');
+            } else {
+                skyGrad.addColorStop(0, theme.skyTop);
+                skyGrad.addColorStop(0.55, theme.skyMid);
+                skyGrad.addColorStop(1, theme.skyBottom);
+            }
+            scenePool.renderCache.key = skyKey;
+            scenePool.renderCache.skyGrad = skyGrad;
         }
-        ctx.fillStyle = skyGrad;
+        ctx.fillStyle = scenePool.renderCache.skyGrad;
         ctx.fillRect(0, 0, cw, waterY + 2);
 
         // 星夜或星陨极光夜：绘制闪烁星辰与极光彩带
@@ -1311,13 +1368,31 @@
                 ctx.restore();
             }
 
+            const starAlphas = [0.45, 0.65, 0.82, 0.96];
+            const starBuckets = [[], [], [], []];
             for (const s of scenePool.stars) {
                 const twinkle = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(t * s.speed + s.phase));
-                ctx.fillStyle = `rgba(248, 250, 252, ${twinkle})`;
+                const bIdx = Math.min(3, Math.max(0, Math.floor((twinkle - 0.35) / 0.1625)));
+                starBuckets[bIdx].push(s);
+            }
+            ctx.save();
+            ctx.fillStyle = '#f8fafc';
+            for (let b = 0; b < 4; b++) {
+                const bucket = starBuckets[b];
+                if (bucket.length === 0) continue;
+                ctx.globalAlpha = starAlphas[b];
                 ctx.beginPath();
-                ctx.arc(s.xRatio * cw, s.yRatio * waterY * 2, s.r, 0, Math.PI * 2);
+                for (let i = 0; i < bucket.length; i++) {
+                    const s = bucket[i];
+                    const sx = s.xRatio * cw;
+                    const sy = s.yRatio * waterY * 2;
+                    ctx.moveTo(sx + s.r, sy);
+                    ctx.arc(sx, sy, s.r, 0, Math.PI * 2);
+                }
                 ctx.fill();
             }
+            ctx.globalAlpha = 1;
+            ctx.restore();
         }
 
         // 日月与柔和光晕 (雷暴时被乌云遮蔽减弱)
@@ -1415,49 +1490,55 @@
      * 第 2 层：远景连绵山峦 (0.25x 视差) & 中景林木岛屿剪影 (0.55x 视差)
      */
     function renderParallaxMountains(ctx, cw, waterY, theme, camX) {
-        // 2.1 远景连绵雪顶/云雾群山 (0.25x 视差)
+        // 2.1 远景连绵雪顶/云雾群山 (0.25x 视差，世界网格采样避免边缘抖动)
         const farOffset = camX * 0.25;
+        const farStep = 16;
+        const startFarWx = Math.floor((farOffset - 20) / farStep) * farStep;
+        const endFarWx = farOffset + cw + 20 + farStep;
         ctx.fillStyle = theme.mountainFar;
         ctx.beginPath();
-        ctx.moveTo(0, waterY);
-        for (let sx = -20; sx <= cw + 20; sx += 16) {
-            const wx = sx + farOffset;
+        ctx.moveTo(startFarWx - farOffset, waterY);
+        for (let wx = startFarWx; wx <= endFarWx; wx += farStep) {
+            const sx = wx - farOffset;
             const h = Math.sin(wx * 0.0045) * 42 + Math.cos(wx * 0.011) * 24 + 58;
             ctx.lineTo(sx, waterY - h);
         }
-        ctx.lineTo(cw, waterY);
+        ctx.lineTo(endFarWx - farOffset, waterY);
         ctx.closePath();
         ctx.fill();
 
-        // 2.2 中景林木丘陵与远方海湾岛屿剪影 (0.55x 视差)
+        // 2.2 中景林木丘陵与远方海湾岛屿剪影 (0.55x 视差，世界网格采样)
         const midOffset = camX * 0.55;
+        const midStep = 12;
+        const startMidWx = Math.floor((midOffset - 20) / midStep) * midStep;
+        const endMidWx = midOffset + cw + 20 + midStep;
         ctx.fillStyle = theme.mountainMid;
         ctx.beginPath();
-        ctx.moveTo(0, waterY);
-        for (let sx = -20; sx <= cw + 20; sx += 12) {
-            const wx = sx + midOffset;
+        ctx.moveTo(startMidWx - midOffset, waterY);
+        for (let wx = startMidWx; wx <= endMidWx; wx += midStep) {
+            const sx = wx - midOffset;
             const h = Math.sin(wx * 0.008 + 1.4) * 26 + Math.cos(wx * 0.021) * 14 + 30;
             ctx.lineTo(sx, waterY - h);
         }
-        ctx.lineTo(cw, waterY);
+        ctx.lineTo(endMidWx - midOffset, waterY);
         ctx.closePath();
         ctx.fill();
 
-        // 中景松林尖顶剪影装饰
+        // 中景松林尖顶剪影装饰 (合批单次 fill)
         ctx.fillStyle = theme.mountainNear;
+        ctx.beginPath();
         for (let wx = 40; wx < 1700; wx += 55) {
             const sx = wx - midOffset;
             if (sx < -40 || sx > cw + 40) continue;
             const baseH = Math.sin(wx * 0.008 + 1.4) * 20 + 22;
             const treeH = 18 + (wx % 3) * 6;
             const ty = waterY - baseH;
-            ctx.beginPath();
             ctx.moveTo(sx, ty - treeH);
             ctx.lineTo(sx - 9, ty + 4);
             ctx.lineTo(sx + 9, ty + 4);
             ctx.closePath();
-            ctx.fill();
         }
+        ctx.fill();
     }
 
     /**
@@ -1466,12 +1547,17 @@
     function renderWaterAndUnderwater(ctx, cw, ch, waterY, theme, camX, t, game) {
         const waterH = ch - waterY;
 
-        // 3.1 基础水体垂直渐变
-        const waterGrad = ctx.createLinearGradient(0, waterY, 0, ch);
-        waterGrad.addColorStop(0, theme.waterTop);
-        waterGrad.addColorStop(0.45, theme.waterMid);
-        waterGrad.addColorStop(1, theme.waterDeep);
-        ctx.fillStyle = waterGrad;
+        // 3.1 基础水体垂直渐变 (缓存静态渐变对象)
+        const waterKey = `${waterY}|${ch}|${theme.id}`;
+        if (scenePool.renderCache.waterKey !== waterKey || !scenePool.renderCache.waterGrad) {
+            const waterGrad = ctx.createLinearGradient(0, waterY, 0, ch);
+            waterGrad.addColorStop(0, theme.waterTop);
+            waterGrad.addColorStop(0.45, theme.waterMid);
+            waterGrad.addColorStop(1, theme.waterDeep);
+            scenePool.renderCache.waterKey = waterKey;
+            scenePool.renderCache.waterGrad = waterGrad;
+        }
+        ctx.fillStyle = scenePool.renderCache.waterGrad;
         ctx.fillRect(0, waterY, cw, waterH);
 
         // 3.2 四大生态区水底色调平滑过渡 (0..600 翠绿, 600..1200 蔚蓝, 1200..1800 翡翠青, 1800..2400 星渊紫)
@@ -1519,22 +1605,22 @@
         }
         ctx.restore();
 
-        // 3.4 水面动态波光倒影线条
+        // 3.4 水面动态波光倒影线条 (全屏幕合批单次 stroke)
         ctx.save();
         ctx.strokeStyle = theme.reflection;
         ctx.lineWidth = 1.4;
+        ctx.beginPath();
         for (let row = 0; row < 16; row++) {
             const ry = waterY + 6 + row * (waterH / 17);
             const waveLen = 26 + row * 4;
             for (let wx = 40; wx < WWF.WORLD_WIDTH; wx += 145) {
                 const sx = wx - camX + Math.sin(t * 1.8 + row + wx * 0.01) * 14;
                 if (sx < -60 || sx > cw + 60) continue;
-                ctx.beginPath();
                 ctx.moveTo(sx, ry);
                 ctx.lineTo(sx + waveLen, ry);
-                ctx.stroke();
             }
         }
+        ctx.stroke();
         ctx.restore();
 
         // 3.5 水下环境鱼影游动
@@ -1585,30 +1671,39 @@
         // 生态 0：芦苇浅滩 (0..600) —— 暖沙草坡河岸、摇曳高大蒲草芦苇、漂浮荷叶睡莲
         // --------------------------------------------------------------------
         if (camX < 720) {
-            // 水下浅滩鹅卵石与嫩绿水草
+            // 水下浅滩鹅卵石与嫩绿水草 (合批绘制)
             ctx.save();
+            ctx.strokeStyle = 'rgba(16, 185, 129, 0.38)';
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
             for (let wx = 40; wx < 580; wx += 48) {
                 const sx = wx - camX;
                 if (sx < -40 || sx > cw + 40) continue;
                 const sway = Math.sin(t * 2.2 + wx * 0.05) * 7;
-                ctx.strokeStyle = 'rgba(16, 185, 129, 0.38)';
-                ctx.lineWidth = 3;
-                ctx.lineCap = 'round';
-                ctx.beginPath();
                 ctx.moveTo(sx, ch);
                 ctx.quadraticCurveTo(sx + sway, ch - 38, sx + sway * 1.3, ch - 72 - (wx % 25));
-                ctx.stroke();
             }
+            ctx.stroke();
             ctx.restore();
 
-            // 倾斜的暖沙与翠绿草坡河岸 (0..600)
+            // 倾斜的暖沙与翠绿草坡河岸 (0..600，缓存静态渐变)
             ctx.save();
+            if (scenePool.renderCache.terrainWaterY !== waterY || !scenePool.renderCache.sandGrad || !scenePool.renderCache.grassGrad) {
+                const sandGrad = ctx.createLinearGradient(0, waterY - 26, 0, waterY + 32);
+                sandGrad.addColorStop(0, '#d97706');
+                sandGrad.addColorStop(0.5, '#b45309');
+                sandGrad.addColorStop(1, '#78350f');
+                const grassGrad = ctx.createLinearGradient(0, waterY - 36, 0, waterY - 8);
+                grassGrad.addColorStop(0, '#22c55e');
+                grassGrad.addColorStop(1, '#15803d');
+                scenePool.renderCache.terrainWaterY = waterY;
+                scenePool.renderCache.sandGrad = sandGrad;
+                scenePool.renderCache.grassGrad = grassGrad;
+            }
+
             // 下层暖沙河床护坡
-            const sandGrad = ctx.createLinearGradient(0, waterY - 26, 0, waterY + 32);
-            sandGrad.addColorStop(0, '#d97706');
-            sandGrad.addColorStop(0.5, '#b45309');
-            sandGrad.addColorStop(1, '#78350f');
-            ctx.fillStyle = sandGrad;
+            ctx.fillStyle = scenePool.renderCache.sandGrad;
             ctx.beginPath();
             ctx.moveTo(-camX, waterY - 26);
             ctx.lineTo(460 - camX, waterY - 18);
@@ -1618,10 +1713,7 @@
             ctx.fill();
 
             // 上层丰茂草坡表面
-            const grassGrad = ctx.createLinearGradient(0, waterY - 36, 0, waterY - 8);
-            grassGrad.addColorStop(0, '#22c55e');
-            grassGrad.addColorStop(1, '#15803d');
-            ctx.fillStyle = grassGrad;
+            ctx.fillStyle = scenePool.renderCache.grassGrad;
             ctx.beginPath();
             ctx.moveTo(-camX, waterY - 28);
             ctx.lineTo(460 - camX, waterY - 18);
@@ -1731,18 +1823,18 @@
                 ctx.fillRect(sx - 7, deckY - 26, 14, 4);
             }
 
-            // 护栏下垂麻绳
+            // 护栏下垂麻绳 (合批绘制)
             ctx.strokeStyle = 'rgba(217, 119, 6, 0.65)';
             ctx.lineWidth = 2;
+            ctx.beginPath();
             for (let px = 600; px < 1170; px += 95) {
                 const sx1 = px - camX;
                 const sx2 = px + 95 - camX;
                 if (sx2 < -20 || sx1 > cw + 20) continue;
-                ctx.beginPath();
                 ctx.moveTo(sx1, deckY - 18);
                 ctx.quadraticCurveTo((sx1 + sx2) * 0.5, deckY - 6, sx2, deckY - 18);
-                ctx.stroke();
             }
+            ctx.stroke();
 
             // 栈桥横梁主甲板
             const sxStart = pierStart - camX;
@@ -1841,19 +1933,19 @@
         if (camX + cw > 1150 && camX < 1850) {
             ctx.save();
 
-            // 水下摇曳翡翠色高水草
+            // 水下摇曳翡翠色高水草 (合批绘制)
+            ctx.strokeStyle = 'rgba(6, 182, 212, 0.42)';
+            ctx.lineWidth = 3.5;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
             for (let wx = 1230; wx <= 1780; wx += 44) {
                 const sx = wx - camX;
                 if (sx < -40 || sx > cw + 40) continue;
                 const sway = Math.sin(t * 1.9 + wx * 0.04) * 10;
-                ctx.strokeStyle = 'rgba(6, 182, 212, 0.42)';
-                ctx.lineWidth = 3.5;
-                ctx.lineCap = 'round';
-                ctx.beginPath();
                 ctx.moveTo(sx, ch);
                 ctx.quadraticCurveTo(sx - sway, ch - 55, sx + sway, ch - 110 - (wx % 35));
-                ctx.stroke();
             }
+            ctx.stroke();
 
             // 湖心奇石绿洲小岛 (位于水面后侧背景 x = 1360..1670，船只可从前方水面划过)
             const islandX = 1515 - camX;
@@ -1912,10 +2004,11 @@
                 ctx.fill();
             }
 
-            // 随风飘落的樱花瓣
+            // 随风飘落的樱花瓣 (视野裁剪)
             ctx.fillStyle = '#fbcfe8';
             for (const pt of scenePool.petals) {
                 const px = pt.worldX - camX;
+                if (px < -20 || px > cw + 20) continue;
                 const py = waterY + pt.yOffset;
                 ctx.beginPath();
                 ctx.ellipse(px, py, pt.size, pt.size * 0.6, pt.phase, 0, Math.PI * 2);
@@ -2092,9 +2185,11 @@
      * 渲染水面涟漪与飞溅水花粒子
      */
     function renderRipplesAndSplashes(ctx, camX) {
+        const cw = WWF.cw || 960;
         ctx.save();
         for (const rp of scenePool.ripples) {
             const sx = rp.worldX - camX;
+            if (sx < -60 || sx > cw + 60) continue;
             const c = String(rp.color || '255, 255, 255');
             if (c.startsWith('rgb') || c.startsWith('#')) {
                 ctx.strokeStyle = c;
@@ -2112,6 +2207,7 @@
 
         for (const sp of scenePool.splashes) {
             const sx = sp.worldX - camX;
+            if (sx < -60 || sx > cw + 60) continue;
             ctx.fillStyle = sp.color;
             ctx.globalAlpha = Math.max(0, sp.alpha);
             ctx.beginPath();
@@ -2121,6 +2217,7 @@
 
         for (const dp of scenePool.dustPuffs) {
             const sx = dp.worldX - camX;
+            if (sx < -60 || sx > cw + 60) continue;
             ctx.fillStyle = dp.color;
             ctx.globalAlpha = Math.max(0, dp.alpha);
             ctx.beginPath();
@@ -2753,10 +2850,6 @@
         const style = ROD_VISUALS[lvlIdx];
 
         ctx.save();
-        if (style.glow) {
-            ctx.shadowColor = style.glow;
-            ctx.shadowBlur = 10;
-        }
 
         // 鱼竿握把
         ctx.strokeStyle = style.handle;
@@ -2773,6 +2866,15 @@
         let ctrlY = Math.min(by, ty) - 10;
         if (game.state === 'REELING') {
             ctrlY -= 12 + (game.reelTension || 0) * 8;
+        }
+
+        if (style.glow) {
+            ctx.strokeStyle = style.glow;
+            ctx.lineWidth = 6.5;
+            ctx.beginPath();
+            ctx.moveTo(bx, by);
+            ctx.quadraticCurveTo(ctrlX, ctrlY, tx, ty);
+            ctx.stroke();
         }
 
         const rodGrad = ctx.createLinearGradient(bx, by, tx, ty);
@@ -2798,16 +2900,18 @@
      * 最上层：渲染前景雨丝粒子与黄金鱼潮水雾光效
      */
     function renderForegroundWeatherAndGoldenTide(ctx, cw, ch, waterY, weatherId, camX, t, game) {
-        // 1. 黄金鱼潮星光气泡与水面金雾
+        // 1. 黄金鱼潮星光气泡与水面金雾 (轻量光晕圆替代 shadowBlur)
         if (game.goldenTideTimer > 0 || scenePool.goldenBubbles.length > 0) {
             ctx.save();
             for (const gb of scenePool.goldenBubbles) {
                 const sx = gb.worldX - camX;
                 if (sx < -20 || sx > cw + 20) continue;
-                ctx.fillStyle = '#fde047';
                 ctx.globalAlpha = Math.max(0, gb.alpha);
-                ctx.shadowColor = '#f59e0b';
-                ctx.shadowBlur = 8;
+                ctx.fillStyle = 'rgba(245, 158, 11, 0.28)';
+                ctx.beginPath();
+                ctx.arc(sx, gb.y, gb.r * 2.1, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#fde047';
                 ctx.beginPath();
                 ctx.arc(sx, gb.y, gb.r, 0, Math.PI * 2);
                 ctx.fill();
@@ -2815,19 +2919,31 @@
             ctx.restore();
         }
 
-        // 2. 前景斜落雨丝 (rain / storm)
+        // 2. 前景斜落雨丝 (rain / storm，分 3 透明度桶合批绘制)
         if (weatherId === 'rain' || weatherId === 'storm') {
             const isStorm = weatherId === 'storm';
             const slantX = isStorm ? -9 : -5;
+            const bucketAlphas = [0.32, 0.48, 0.66];
+            const buckets = [[], [], []];
+            for (let i = 0; i < scenePool.raindrops.length; i++) {
+                const drop = scenePool.raindrops[i];
+                const bIdx = drop.alpha < 0.4 ? 0 : (drop.alpha < 0.56 ? 1 : 2);
+                buckets[bIdx].push(drop);
+            }
             ctx.save();
-            ctx.strokeStyle = isStorm ? 'rgba(186, 230, 253, 0.55)' : 'rgba(224, 242, 254, 0.42)';
+            ctx.strokeStyle = isStorm ? 'rgb(186, 230, 253)' : 'rgb(224, 242, 254)';
             ctx.lineWidth = isStorm ? 1.6 : 1.2;
             ctx.lineCap = 'round';
-            for (const drop of scenePool.raindrops) {
-                ctx.globalAlpha = drop.alpha;
+            for (let b = 0; b < 3; b++) {
+                const bucket = buckets[b];
+                if (bucket.length === 0) continue;
+                ctx.globalAlpha = bucketAlphas[b] * (isStorm ? 1.0 : 0.85);
                 ctx.beginPath();
-                ctx.moveTo(drop.x, drop.y);
-                ctx.lineTo(drop.x + slantX, drop.y + drop.len);
+                for (let i = 0; i < bucket.length; i++) {
+                    const drop = bucket[i];
+                    ctx.moveTo(drop.x, drop.y);
+                    ctx.lineTo(drop.x + slantX, drop.y + drop.len);
+                }
                 ctx.stroke();
             }
             ctx.restore();

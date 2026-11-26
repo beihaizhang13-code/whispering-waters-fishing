@@ -758,6 +758,8 @@
         noise: null,
         lastTickTime: 0,
         lastTurnTime: 0,
+        lastRowTime: 0,
+        lastNoiseTime: 0,
 
         init() {
             if (this.ready || typeof Tone === 'undefined') return;
@@ -871,26 +873,26 @@
         },
 
         playRow() {
-            if ((WWF.player && WWF.player.muted) || !this.ready) return;
+            if ((WWF.player && WWF.player.muted) || !this.ready || !this.noise) return;
+            if (typeof Tone === 'undefined' || !Tone.context || Tone.context.state !== 'running') return;
             const nowMs = performance.now();
-            if (nowMs - this.lastTickTime < 450) return;
-            this.lastTickTime = nowMs;
+            if (nowMs - this.lastRowTime < 450 || nowMs - this.lastNoiseTime < 110) return;
+            this.lastRowTime = nowMs;
+            this.lastNoiseTime = nowMs;
             try {
-                this.noise.triggerAttackRelease('32n');
+                this.noise.triggerAttackRelease('32n', Tone.now() + 0.005);
             } catch (e) {}
         },
 
         playTurn(inBoat = false) {
-            if ((WWF.player && WWF.player.muted) || !this.ready) return;
+            if ((WWF.player && WWF.player.muted) || !this.ready || !this.noise) return;
+            if (typeof Tone === 'undefined' || !Tone.context || Tone.context.state !== 'running') return;
             const nowMs = performance.now();
-            if (nowMs - this.lastTurnTime < 220) return;
+            if (nowMs - this.lastTurnTime < 220 || nowMs - this.lastNoiseTime < 110) return;
             this.lastTurnTime = nowMs;
+            this.lastNoiseTime = nowMs;
             try {
-                if (inBoat) {
-                    this.noise.triggerAttackRelease('32n');
-                } else {
-                    this.noise.triggerAttackRelease('64n');
-                }
+                this.noise.triggerAttackRelease(inBoat ? '32n' : '64n', Tone.now() + 0.005);
             } catch (e) {}
         },
 

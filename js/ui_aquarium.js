@@ -499,23 +499,24 @@
         }
 
         const boatBtnText = document.getElementById('boatBtnText');
-        if (boatBtnText) {
-            boatBtnText.textContent = p.inBoat ? '⚓ 靠岸步行' : '🚣 乘船探索';
+        const nextDesktopBoat = p.inBoat ? '靠岸下船' : '乘船探索';
+        if (boatBtnText && boatBtnText.textContent !== nextDesktopBoat) {
+            boatBtnText.textContent = nextDesktopBoat;
         }
         const mobileBoatBtnText = document.getElementById('mobileBoatBtnText');
-        if (mobileBoatBtnText) {
-            mobileBoatBtnText.textContent = p.inBoat ? '靠岸' : '乘船';
+        const nextMobileBoat = p.inBoat ? '靠岸' : '乘船';
+        if (mobileBoatBtnText && mobileBoatBtnText.textContent !== nextMobileBoat) {
+            mobileBoatBtnText.textContent = nextMobileBoat;
         }
 
         const jumpBtns = document.querySelectorAll('.biome-jump-btn');
         jumpBtns.forEach(btn => {
             const idx = Number(btn.getAttribute('data-biome'));
-            const isMobile = Boolean(btn.closest('#mobileBiomeQuickJump'));
-            const basePad = isMobile ? 'px-1.5 py-1.5 rounded-xl text-[10px] whitespace-nowrap' : 'px-2 py-1 rounded-lg';
-            if (biome && idx === biome.index) {
-                btn.className = `biome-jump-btn ${basePad} bg-sky-500/35 border border-sky-400/60 text-white font-bold transition`;
-            } else {
-                btn.className = `biome-jump-btn ${basePad} bg-slate-800/80 hover:bg-slate-700 text-slate-200 transition`;
+            const activeVal = (biome && idx === biome.index) ? 'true' : 'false';
+            if (btn.dataset) {
+                if (btn.dataset.active !== activeVal) btn.dataset.active = activeVal;
+            } else if (typeof btn.setAttribute === 'function') {
+                btn.setAttribute('data-active', activeVal);
             }
         });
 
@@ -3793,6 +3794,12 @@
         }
 
         // 5. 左下角/移动端导航条：移动按钮、乘船切换与四大生态快捷传送 (Pointer Events 多指隔离)
+        const btnMoveLeftEl = document.getElementById('btnMoveLeft');
+        const btnMoveRightEl = document.getElementById('btnMoveRight');
+        const mobileBtnMoveLeftEl = document.getElementById('mobileBtnMoveLeft');
+        const mobileBtnMoveRightEl = document.getElementById('mobileBtnMoveRight');
+        const moveBtnEls = [btnMoveLeftEl, btnMoveRightEl, mobileBtnMoveLeftEl, mobileBtnMoveRightEl];
+
         const bindHoldMove = (el, prop, dirVal) => {
             if (!el) return;
             let activePointerId = null;
@@ -3806,20 +3813,22 @@
                     WWF.game[prop] = true;
                     if (dirVal) WWF.game.lastMoveDir = dirVal;
                 }
-                el.classList.add('is-pressed');
+                if (el.dataset) el.dataset.pressed = 'true';
             };
             const end = (e) => {
                 if (activePointerId !== null && e.pointerId !== activePointerId) return;
                 activePointerId = null;
                 if (WWF.game) WWF.game[prop] = false;
-                el.classList.remove('is-pressed');
+                if (el.dataset) delete el.dataset.pressed;
             };
             el.addEventListener('pointerdown', start);
             el.addEventListener('pointerup', end);
             el.addEventListener('pointercancel', end);
         };
-        ['btnMoveLeft', 'mobileBtnMoveLeft'].forEach(id => bindHoldMove(document.getElementById(id), 'moveLeft', -1));
-        ['btnMoveRight', 'mobileBtnMoveRight'].forEach(id => bindHoldMove(document.getElementById(id), 'moveRight', 1));
+        bindHoldMove(btnMoveLeftEl, 'moveLeft', -1);
+        bindHoldMove(mobileBtnMoveLeftEl, 'moveLeft', -1);
+        bindHoldMove(btnMoveRightEl, 'moveRight', 1);
+        bindHoldMove(mobileBtnMoveRightEl, 'moveRight', 1);
 
         ['btnToggleBoat', 'mobileBtnToggleBoat'].forEach(id => {
             const el = document.getElementById(id);
@@ -3896,10 +3905,10 @@
                 WWF.game.lastMoveDir = 0;
                 if (WWF.game.isHolding) triggerGameplayPressEnd();
             }
-            ['btnMoveLeft', 'btnMoveRight', 'mobileBtnMoveLeft', 'mobileBtnMoveRight'].forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.classList.remove('is-pressed');
-            });
+            for (let i = 0; i < moveBtnEls.length; i++) {
+                const el = moveBtnEls[i];
+                if (el && el.dataset) delete el.dataset.pressed;
+            }
         };
         window.addEventListener('blur', resetAllHoldStates);
         document.addEventListener('visibilitychange', () => {
@@ -3935,22 +3944,22 @@
             // 左移 (A / ArrowLeft)
             if (e.code === 'KeyA' || e.code === 'ArrowLeft') {
                 if (e.code === 'ArrowLeft') e.preventDefault();
+                if (e.repeat) return;
                 if (WWF.game) {
                     WWF.game.moveLeft = true;
                     WWF.game.lastMoveDir = -1;
                 }
-                const btnLeft = document.getElementById('btnMoveLeft');
-                if (btnLeft) btnLeft.classList.add('is-pressed');
+                if (btnMoveLeftEl && btnMoveLeftEl.dataset) btnMoveLeftEl.dataset.pressed = 'true';
             }
             // 右移 (D / ArrowRight)
             else if (e.code === 'KeyD' || e.code === 'ArrowRight') {
                 if (e.code === 'ArrowRight') e.preventDefault();
+                if (e.repeat) return;
                 if (WWF.game) {
                     WWF.game.moveRight = true;
                     WWF.game.lastMoveDir = 1;
                 }
-                const btnRight = document.getElementById('btnMoveRight');
-                if (btnRight) btnRight.classList.add('is-pressed');
+                if (btnMoveRightEl && btnMoveRightEl.dataset) btnMoveRightEl.dataset.pressed = 'true';
             }
             // 登船/上岸 (E)
             else if (e.code === 'KeyE' && !e.repeat) {
@@ -3983,12 +3992,10 @@
         window.addEventListener('keyup', (e) => {
             if (e.code === 'KeyA' || e.code === 'ArrowLeft') {
                 if (WWF.game) WWF.game.moveLeft = false;
-                const btnLeft = document.getElementById('btnMoveLeft');
-                if (btnLeft) btnLeft.classList.remove('is-pressed');
+                if (btnMoveLeftEl && btnMoveLeftEl.dataset) delete btnMoveLeftEl.dataset.pressed;
             } else if (e.code === 'KeyD' || e.code === 'ArrowRight') {
                 if (WWF.game) WWF.game.moveRight = false;
-                const btnRight = document.getElementById('btnMoveRight');
-                if (btnRight) btnRight.classList.remove('is-pressed');
+                if (btnMoveRightEl && btnMoveRightEl.dataset) delete btnMoveRightEl.dataset.pressed;
             } else if (e.code === 'Space') {
                 e.preventDefault();
                 triggerGameplayPressEnd();
@@ -4017,8 +4024,9 @@
         WWF.updateHUD();
         WWF.updateActionUI();
 
-        let lastTime = performance.now();
+        let lastTime = 0;
         function gameLoop(now) {
+            if (!lastTime) lastTime = now;
             const dt = Math.min(0.05, Math.max(0.001, (now - lastTime) / 1000));
             lastTime = now;
 

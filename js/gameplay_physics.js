@@ -13,6 +13,8 @@
     'use strict';
 
     const WWF = window.WWF = window.WWF || {};
+    let lastGoldenTideSec = -1;
+    let cachedGoldenTideTimeEl = null;
 
     // ------------------------------------------------------------------------
     // 1. 纯函数七维动态加权概率计算引擎 (可注入显式参数与随机源)
@@ -573,6 +575,7 @@
     WWF.startGoldenTide = function (duration = 60) {
         const game = WWF.game;
         game.goldenTideTimer = Math.max(game.goldenTideTimer, duration);
+        lastGoldenTideSec = -1;
         const banner = document.getElementById('goldenTideBanner');
         if (banner) {
             banner.classList.remove('hidden');
@@ -611,10 +614,16 @@
         // 2. 黄金鱼潮倒计时与随机自然触发
         if (game.goldenTideTimer > 0) {
             game.goldenTideTimer -= dt;
-            const timeEl = document.getElementById('goldenTideTime');
-            if (timeEl) timeEl.textContent = `${Math.ceil(game.goldenTideTimer)}s`;
+            const sec = Math.ceil(game.goldenTideTimer);
+            if (sec !== lastGoldenTideSec) {
+                lastGoldenTideSec = sec;
+                const timeEl = cachedGoldenTideTimeEl || (cachedGoldenTideTimeEl = document.getElementById('goldenTideTime'));
+                const nextStr = `${sec}s`;
+                if (timeEl && timeEl.textContent !== nextStr) timeEl.textContent = nextStr;
+            }
             if (game.goldenTideTimer <= 0) {
                 game.goldenTideTimer = 0;
+                lastGoldenTideSec = -1;
                 const banner = document.getElementById('goldenTideBanner');
                 if (banner) {
                     banner.classList.add('hidden');
@@ -1146,13 +1155,16 @@
             ctx.fill();
         }
 
-        // 玩家实时坐标标记
+        // 玩家实时坐标标记 (轻量光晕圆替代 shadowBlur)
         const px = mx + Math.max(0, Math.min(1, (player.worldX || 760) / worldW)) * mapW;
-        ctx.fillStyle = '#fde047';
-        ctx.shadowColor = '#f59e0b';
-        ctx.shadowBlur = 6;
+        const py = my + mapH * 0.5;
+        ctx.fillStyle = 'rgba(245, 158, 11, 0.35)';
         ctx.beginPath();
-        ctx.arc(px, my + mapH * 0.5, 4.5, 0, Math.PI * 2);
+        ctx.arc(px, py, 7.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fde047';
+        ctx.beginPath();
+        ctx.arc(px, py, 4.5, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
     }
