@@ -15,35 +15,37 @@
     const WWF = window.WWF = window.WWF || {};
 
     // ------------------------------------------------------------------------
-    // 1. 七维动态加权概率计算引擎
+    // 1. 纯函数七维动态加权概率计算引擎 (可注入显式参数与随机源)
     // ------------------------------------------------------------------------
-    WWF.calculateProbabilities = function (baitId, depthZone = null, biomeIndex = null, weatherId = null) {
-        const player = WWF.player;
-        const game = WWF.game;
+    WWF.computeProbabilityTable = function (params = {}) {
         const baits = WWF.BAITS || [];
         const species = WWF.FISH_SPECIES || [];
+        const biomes = WWF.BIOMES || [];
+        const weathers = WWF.WEATHERS || {};
+        const boats = WWF.BOATS || [];
 
-        const bait = baits.find(b => b.id === baitId) || baits[0] || {
+        const bait = baits.find(b => b.id === params.baitId) || baits[0] || {
             multipliers: { common: 1, rare: 1, epic: 1, legendary: 1, mythic: 1 }
         };
 
-        const curBiome = (typeof biomeIndex === 'number')
-            ? (WWF.BIOMES[biomeIndex] || WWF.getCurrentBiome())
-            : WWF.getCurrentBiome();
+        const curBiome = (typeof params.biomeIndex === 'number')
+            ? (biomes[params.biomeIndex] || (WWF.getCurrentBiome ? WWF.getCurrentBiome() : { index: 1, baseDepthBonus: 1, name: '微风木栈桥' }))
+            : (WWF.getCurrentBiome ? WWF.getCurrentBiome() : { index: 1, baseDepthBonus: 1, name: '微风木栈桥' });
         const activeBiomeIdx = curBiome.index;
 
-        const effectiveDepth = (typeof depthZone === 'number')
-            ? depthZone
+        const effectiveDepth = (typeof params.depthZone === 'number')
+            ? params.depthZone
             : curBiome.baseDepthBonus;
 
-        const curWeatherId = weatherId || player.weatherId || 'sunny';
-        const weather = WWF.WEATHERS[curWeatherId] || WWF.WEATHERS.sunny;
+        const curWeatherId = params.weatherId || 'sunny';
+        const weather = weathers[curWeatherId] || weathers.sunny;
 
-        const boatObj = (WWF.BOATS || []).find(b => b.id === player.equippedBoat) || { luckBonus: 0 };
-        const boatLuck = player.inBoat ? (boatObj.luckBonus || 0) : 0;
+        const boatObj = boats.find(b => b.id === params.equippedBoat) || { luckBonus: 0 };
+        const boatLuck = params.inBoat ? (boatObj.luckBonus || 0) : 0;
 
         // 祈福幸运值与保底计数对史诗及以上鱼种的增益
-        const highTierLuckBoost = 1 + (player.luckPoints || 0) * 0.02 + (player.pityCounter || 0) * 0.055 + boatLuck;
+        const highTierLuckBoost = 1 + (params.luckPoints || 0) * 0.02 + (params.pityCounter || 0) * 0.055 + boatLuck;
+        const goldenTideActive = Boolean(params.goldenTideActive);
 
         const weights = species.map(fish => {
             // (1) 基础权重 × (2) 鱼饵倍率
@@ -65,7 +67,7 @@
             if (typeof fish.prefBiome === 'number') {
                 const dist = Math.abs(fish.prefBiome - activeBiomeIdx);
                 if (dist === 0) {
-                    w *= 2.15; // 本海域主场物种大幅提升
+                    w *= 2.15;
                 } else if (dist === 1) {
                     w *= 0.85;
                 } else {
@@ -86,7 +88,7 @@
             }
 
             // (6) 黄金鱼潮狂欢加成
-            if (game.goldenTideTimer > 0) {
+            if (goldenTideActive) {
                 if (fish.rarity === 'epic' || fish.rarity === 'legendary' || fish.rarity === 'mythic') {
                     w *= 2.50;
                 } else if (fish.rarity === 'common') {
@@ -110,31 +112,62 @@
         }));
     };
 
-    // ------------------------------------------------------------------------
-    // 2. 闪光异色鱼概率与抽鱼生成
-    // ------------------------------------------------------------------------
-    WWF.getShinyChance = function () {
-        const player = WWF.player;
-        const game = WWF.game;
-        const weather = WWF.WEATHERS[player.weatherId] || WWF.WEATHERS.sunny;
-        const boatObj = (WWF.BOATS || []).find(b => b.id === player.equippedBoat) || { luckBonus: 0 };
-        const boatLuck = player.inBoat ? (boatObj.luckBonus || 0) : 0;
-
-        let chance = 0.02 * (weather.shinyBoost || 1.0);
-        chance += (player.luckPoints || 0) * 0.0035;
-        chance += boatLuck * 0.15;
-        if (game.goldenTideTimer > 0) chance *= 1.8;
-
-        return Math.min(0.40, Math.max(0.01, chance));
+    WWF.calculateProbabilities = function (baitId, depthZone = null, biomeIndex = null, weatherId = null) {
+        const player = WWF.player || {};
+        const game = WWF.game || {};
+        return WWF.computeProbabilityTable({
+            baitId,
+            depthZone,
+            biomeIndex,
+            weatherId: weatherId || player.weatherId || 'sunny',
+            luckPoints: player.luckPoints || 0,
+            pityCounter: player.pityCounter || 0,
+            equippedBoat: player.equippedBoat || 'none',
+            inBoat: Boolean(player.inBoat),
+            goldenTideActive: (game.goldenTideTimer || 0) > 0
+        });
     };
 
-    WWF.rollFish = function (baitId, depthZone) {
-        const player = WWF.player;
-        const game = WWF.game;
-        const landingBiome = WWF.getBiomeAtX(game.targetBobberX || player.worldX);
-        const table = WWF.calculateProbabilities(baitId, depthZone, landingBiome.index, player.weatherId);
+    // ------------------------------------------------------------------------
+    // 2. 纯函数闪光异色鱼概率与可注入随机源抽鱼生成
+    // ------------------------------------------------------------------------
+    WWF.computeShinyChance = function (params = {}) {
+        const eco = WWF.ECONOMY_CONSTANTS || {};
+        const baseShiny = eco.SHINY_BASE_CHANCE || 0.02;
+        const maxShiny = eco.SHINY_MAX_CHANCE || 0.40;
+        const tideShinyMult = eco.SHINY_GOLDEN_TIDE_MULT || 1.8;
 
-        let r = Math.random();
+        const weathers = WWF.WEATHERS || {};
+        const weather = weathers[params.weatherId || 'sunny'] || weathers.sunny || { shinyBoost: 1.0 };
+        const boats = WWF.BOATS || [];
+        const boatObj = boats.find(b => b.id === params.equippedBoat) || { luckBonus: 0 };
+        const boatLuck = params.inBoat ? (boatObj.luckBonus || 0) : 0;
+
+        let chance = baseShiny * (weather.shinyBoost || 1.0);
+        chance += (params.luckPoints || 0) * 0.0035;
+        chance += boatLuck * 0.15;
+        if (params.goldenTideActive) chance *= tideShinyMult;
+
+        return Math.min(maxShiny, Math.max(0.01, chance));
+    };
+
+    WWF.getShinyChance = function () {
+        const player = WWF.player || {};
+        const game = WWF.game || {};
+        return WWF.computeShinyChance({
+            weatherId: player.weatherId || 'sunny',
+            luckPoints: player.luckPoints || 0,
+            equippedBoat: player.equippedBoat || 'none',
+            inBoat: Boolean(player.inBoat),
+            goldenTideActive: (game.goldenTideTimer || 0) > 0
+        });
+    };
+
+    WWF.rollFishWithRng = function (params = {}, rng = Math.random) {
+        const rand = typeof rng === 'function' ? rng : Math.random;
+        const table = WWF.computeProbabilityTable(params);
+
+        let r = rand();
         let chosen = table[table.length - 1];
         for (const entry of table) {
             r -= entry.prob;
@@ -146,24 +179,22 @@
 
         const fish = chosen.fish;
         // 类正态分布体型 + 9% 鱼王暴击
-        const sizeFactor = Math.min(1, Math.max(0, (Math.random() + Math.random()) * 0.5 + (Math.random() < 0.09 ? 0.25 : 0)));
+        const sizeFactorRaw = (rand() + rand()) * 0.5 + (rand() < 0.09 ? 0.25 : 0);
+        const sizeFactor = +Math.min(1, Math.max(0, sizeFactorRaw)).toFixed(4);
         const lengthCm = +(fish.minLen + (fish.maxLen - fish.minLen) * sizeFactor).toFixed(1);
         const weightKg = +(fish.minKg + (fish.maxKg - fish.minKg) * Math.pow(sizeFactor, 1.35)).toFixed(2);
 
-        const isShiny = Math.random() < WWF.getShinyChance();
+        const isShiny = rand() < WWF.computeShinyChance(params);
         const shinyMult = isShiny ? 2.2 : 1.0;
-        const tideMult = game.goldenTideTimer > 0 ? 1.5 : 1.0;
+        const tideMult = params.goldenTideActive ? 1.5 : 1.0;
         const value = Math.round(fish.baseValue * (0.85 + sizeFactor * 0.65) * shinyMult * tideMult);
 
-        // 更新保底计数
-        if (fish.rarity === 'epic' || fish.rarity === 'legendary' || fish.rarity === 'mythic') {
-            player.pityCounter = 0;
-        } else {
-            player.pityCounter = (player.pityCounter || 0) + 1;
-        }
+        const biomes = WWF.BIOMES || [];
+        const landingBiome = biomes[params.biomeIndex] || { index: 1, name: '微风木栈桥' };
+        const uidSuffix = Math.floor(rand() * 9999);
 
         return {
-            uid: 'fish_' + Date.now() + '_' + Math.floor(Math.random() * 9999),
+            uid: `fish_${params.nowMs || Date.now()}_${uidSuffix}`,
             fish,
             prob: chosen.prob,
             lengthCm,
@@ -171,10 +202,38 @@
             value,
             sizeFactor,
             isShiny,
-            isGoldenTide: game.goldenTideTimer > 0,
+            isGoldenTide: Boolean(params.goldenTideActive),
             biomeName: landingBiome.name,
-            biomeIndex: landingBiome.index
+            biomeIndex: landingBiome.index,
+            ruleVersion: WWF.CATALOG_VERSION || '2.0.0'
         };
+    };
+
+    WWF.rollFish = function (baitId, depthZone, rng = Math.random) {
+        const player = WWF.player;
+        const game = WWF.game;
+        const landingBiome = WWF.getBiomeAtX(game.targetBobberX || player.worldX);
+        const rolled = WWF.rollFishWithRng({
+            baitId,
+            depthZone,
+            biomeIndex: landingBiome.index,
+            weatherId: player.weatherId || 'sunny',
+            luckPoints: player.luckPoints || 0,
+            pityCounter: player.pityCounter || 0,
+            equippedBoat: player.equippedBoat || 'none',
+            inBoat: Boolean(player.inBoat),
+            goldenTideActive: (game.goldenTideTimer || 0) > 0,
+            nowMs: Date.now()
+        }, rng);
+
+        // 更新保底计数
+        if (rolled.fish.rarity === 'epic' || rolled.fish.rarity === 'legendary' || rolled.fish.rarity === 'mythic') {
+            player.pityCounter = 0;
+        } else {
+            player.pityCounter = (player.pityCounter || 0) + 1;
+        }
+
+        return rolled;
     };
 
     // ------------------------------------------------------------------------

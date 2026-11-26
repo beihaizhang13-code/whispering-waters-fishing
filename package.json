@@ -1,0 +1,29 @@
+{
+  "name": "whispering-waters-fishing",
+  "version": "2.1.0-foundation",
+  "description": "《微风垂钓物语 2.0》：原生 Canvas/SVG 休闲垂钓网页游戏与核心解耦的全栈工程基座",
+  "private": true,
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "node server.js",
+    "build": "node scripts/build.mjs",
+    "verify": "node scripts/verify.mjs",
+    "test": "node --test tests/unit/*.test.mjs tests/contract/*.test.mjs tests/integration/*.test.mjs",
+    "db:migrate:local": "node scripts/db_migrate_local.mjs"
+  },
+  "keywords": [
+    "fishing-game",
+    "html5-canvas",
+    "svg",
+    "netlify-functions",
+    "sqlite",
+    "postgres"
+  ],
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@netlify/database": "^2.0.4",
+    "@netlify/functions": "^6.1.2"
+  }
+}

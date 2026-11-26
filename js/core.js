@@ -12,16 +12,36 @@
     'use strict';
 
     const WWF = window.WWF = window.WWF || {};
+    const SharedCatalog = (typeof window !== 'undefined' && window.WWF_SHARED && window.WWF_SHARED.GameCatalog)
+        ? window.WWF_SHARED.GameCatalog
+        : null;
+
+    WWF.CATALOG_VERSION = SharedCatalog ? SharedCatalog.CATALOG_VERSION : '2.0.0';
+    WWF.ECONOMY_CONSTANTS = SharedCatalog ? SharedCatalog.ECONOMY_CONSTANTS : {
+        AQUARIUM_FEED_COST: 15,
+        AQUARIUM_FEED_GROWTH_MULT: 1.08,
+        AQUARIUM_SHINY_INCOME_MULT: 1.5,
+        SHINY_BASE_CHANCE: 0.02,
+        SHINY_MAX_CHANCE: 0.40,
+        SHINY_GOLDEN_TIDE_MULT: 1.8,
+        GOLDEN_TIDE_SUMMON_LUCK: 8,
+        GOLDEN_TIDE_SUMMON_COINS: 180,
+        GOLDEN_TIDE_DURATION_SEC: 60,
+        OFFLINE_AQUARIUM_MAX_HOURS: 24,
+        MAX_BASKET_SIZE: 200
+    };
 
     WWF.SAVE_KEY = 'whispering_waters_fishing_v2';
     WWF.LEGACY_SAVE_KEY = 'whispering_waters_fishing_v1';
 
     // ------------------------------------------------------------------------
-    // 四大横向生态钓点定义 (总世界宽度 2400px)
+    // 四大横向生态钓点定义 (总世界宽度 2400px，优先消费 shared/game_catalog.js)
     // ------------------------------------------------------------------------
-    WWF.WORLD_WIDTH = 2400;
+    WWF.WORLD_WIDTH = SharedCatalog ? SharedCatalog.WORLD_WIDTH : 2400;
 
-    WWF.BIOMES = [
+    WWF.BIOMES = SharedCatalog
+        ? SharedCatalog.BIOMES.map(b => ({ ...b }))
+        : [
         {
             id: 'reed',
             index: 0,
@@ -73,9 +93,11 @@
     ];
 
     // ------------------------------------------------------------------------
-    // 动态天气系统配置
+    // 动态天气系统配置 (优先消费 shared/game_catalog.js)
     // ------------------------------------------------------------------------
-    WWF.WEATHERS = {
+    WWF.WEATHERS = SharedCatalog
+        ? JSON.parse(JSON.stringify(SharedCatalog.WEATHERS))
+        : {
         sunny: {
             id: 'sunny',
             name: '晴空微风',

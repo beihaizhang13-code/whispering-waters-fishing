@@ -12,6 +12,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body class="safe-body flex items-start sm:items-center justify-center">
@@ -530,6 +531,7 @@
     </div>
 
     <!-- 按依赖顺序加载模块化脚本 -->
+    <script src="shared/game_catalog.js"></script>
     <script src="js/core.js"></script>
     <script src="js/fish_renderer.js"></script>
     <script src="js/fish_models_common.js"></script>

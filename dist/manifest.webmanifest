@@ -1,0 +1,14 @@
+{
+  "name": "微风垂钓物语 2.0",
+  "short_name": "微风垂钓",
+  "description": "基于原生 Canvas 与 SVG 的 2.5D 休闲垂钓、生态水族箱经营与远航收集网页游戏。",
+  "lang": "zh-CN",
+  "start_url": "/index.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#0b1826",
+  "background_color": "#07121e",
+  "categories": ["games", "entertainment"],
+  "icons": []
+}

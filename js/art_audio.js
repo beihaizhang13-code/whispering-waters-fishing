@@ -13,11 +13,14 @@
     'use strict';
 
     const WWF = window.WWF = window.WWF || {};
+    const SharedCatalog = (typeof window !== 'undefined' && window.WWF_SHARED && window.WWF_SHARED.GameCatalog)
+        ? window.WWF_SHARED.GameCatalog
+        : null;
 
     // ------------------------------------------------------------------------
     // 1. 稀有度定义（含放生幸运奖励 & 水族箱每分钟门票收益）
     // ------------------------------------------------------------------------
-    WWF.RARITIES = {
+    const DEFAULT_RARITIES = {
         common: {
             name: '普通',
             en: 'COMMON',
@@ -69,6 +72,15 @@
             aquariumIncome: 200
         }
     };
+
+    WWF.RARITIES = SharedCatalog
+        ? Object.fromEntries(
+            Object.entries(DEFAULT_RARITIES).map(([k, uiDef]) => [
+                k,
+                { ...uiDef, ...(SharedCatalog.RARITIES[k] || {}) }
+            ])
+        )
+        : DEFAULT_RARITIES;
 
     // ------------------------------------------------------------------------
     // 2. 特制鱼饵配置
@@ -435,6 +447,26 @@
             desc: '栖息于星渊沉船湾最深处的幻梦神龙，沐浴流星极光而生，统御万千鱼群。'
         }
     ];
+
+    if (SharedCatalog) {
+        const mergeById = (localList, sharedList) => {
+            const byId = Object.fromEntries(localList.map(item => [item.id, item]));
+            return sharedList.map(sharedItem => ({ ...(byId[sharedItem.id] || {}), ...sharedItem }));
+        };
+        const mergeByLevel = (localList, sharedList) => {
+            const byLv = Object.fromEntries(localList.map(item => [item.level, item]));
+            return sharedList.map(sharedItem => ({ ...(byLv[sharedItem.level] || {}), ...sharedItem }));
+        };
+
+        WWF.BAITS = mergeById(WWF.BAITS, SharedCatalog.BAITS);
+        WWF.ROD_UPGRADES = mergeByLevel(WWF.ROD_UPGRADES, SharedCatalog.ROD_UPGRADES);
+        WWF.REEL_UPGRADES = mergeByLevel(WWF.REEL_UPGRADES, SharedCatalog.REEL_UPGRADES);
+        WWF.BOATS = mergeById(WWF.BOATS, SharedCatalog.BOATS);
+        WWF.HATS = mergeById(WWF.HATS, SharedCatalog.HATS);
+        WWF.OUTFITS = mergeById(WWF.OUTFITS, SharedCatalog.OUTFITS);
+        WWF.AQUARIUM_UPGRADES = mergeByLevel(WWF.AQUARIUM_UPGRADES, SharedCatalog.AQUARIUM_UPGRADES);
+        WWF.FISH_SPECIES = mergeById(WWF.FISH_SPECIES, SharedCatalog.FISH_SPECIES);
+    }
 
     // ------------------------------------------------------------------------
     // 7. 升级版矢量鱼 SVG 生成器 (带动态摆尾动画与闪光异色鱼特效)

@@ -90,15 +90,18 @@
         const p = WWF.player || {};
         const g = WWF.game || {};
         const bId = baitId || p.selectedBait || 'dough';
-        const dZone = typeof depthZone === 'number' ? depthZone : (typeof g.depthZone === 'number' ? g.depthZone : 1);
-        const currentBiome = WWF.getCurrentBiome ? WWF.getCurrentBiome() : { index: 1, id: 'pier' };
+        const currentBiome = WWF.getCurrentBiome ? WWF.getCurrentBiome() : { index: 1, id: 'pier', baseDepthBonus: 1 };
         const targetBiomeIdx = (biomeFilter !== undefined && biomeFilter !== null && biomeFilter !== 'all')
             ? Number(biomeFilter)
             : currentBiome.index;
+        const targetBiomeObj = (WWF.BIOMES && WWF.BIOMES[targetBiomeIdx]) || currentBiome;
+        const dZone = typeof depthZone === 'number'
+            ? depthZone
+            : (typeof targetBiomeObj.baseDepthBonus === 'number' ? targetBiomeObj.baseDepthBonus : 1);
 
         if (typeof WWF.calculateProbabilities === 'function') {
             try {
-                const raw = WWF.calculateProbabilities(bId, dZone, targetBiomeIdx);
+                const raw = WWF.calculateProbabilities(bId, dZone, targetBiomeIdx, p.weatherId || 'sunny');
                 if (raw) {
                     const tierProbs = raw.tierProbs || { common: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 };
                     let items = raw.items || raw.fishProbs || raw.list || (Array.isArray(raw) ? raw : []);
@@ -116,7 +119,9 @@
                     }
                     const shinyChance = typeof raw.shinyChance === 'number'
                         ? raw.shinyChance
-                        : (typeof raw.shinyProb === 'number' ? raw.shinyProb : computeFallbackShinyChance());
+                        : (typeof raw.shinyProb === 'number'
+                            ? raw.shinyProb
+                            : (typeof WWF.getShinyChance === 'function' ? WWF.getShinyChance() : computeFallbackShinyChance()));
                     return { items: normalizedItems, tierProbs, shinyChance };
                 }
             } catch (err) {
@@ -167,13 +172,17 @@
     }
 
     function computeFallbackShinyChance() {
+        if (typeof WWF.getShinyChance === 'function') return WWF.getShinyChance();
         const p = WWF.player || {};
         const g = WWF.game || {};
+        const eco = WWF.ECONOMY_CONSTANTS || {};
         const weather = (WWF.WEATHERS && WWF.WEATHERS[p.weatherId]) || { shinyBoost: 1 };
-        const boatLuck = getBoatBonusInfo().luckBonus || 0;
-        const base = 0.02 + Math.min(0.12, (p.luckPoints || 0) * 0.0025) + boatLuck * 0.08;
-        const tideMult = (g.goldenTideTimer || 0) > 0 ? 1.8 : 1.0;
-        return Math.min(0.45, base * (weather.shinyBoost || 1) * tideMult);
+        const boatLuck = p.inBoat ? (getBoatBonusInfo().luckBonus || 0) : 0;
+        let chance = (eco.SHINY_BASE_CHANCE || 0.02) * (weather.shinyBoost || 1);
+        chance += (p.luckPoints || 0) * 0.0035;
+        chance += boatLuck * 0.15;
+        if ((g.goldenTideTimer || 0) > 0) chance *= (eco.SHINY_GOLDEN_TIDE_MULT || 1.8);
+        return Math.min(eco.SHINY_MAX_CHANCE || 0.40, Math.max(0.01, chance));
     }
 
     // ------------------------------------------------------------------------
@@ -905,7 +914,7 @@
 
     function createStoredFishObject(result) {
         return {
-            uid: 'fish_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+            uid: result.uid || ('fish_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7)),
             fishId: result.fish.id,
             name: result.fish.name,
             rarity: result.fish.rarity,
@@ -913,6 +922,8 @@
             weightKg: Number(result.weightKg),
             value: Number(result.value),
             isShiny: !!result.isShiny,
+            ...(typeof result.sizeFactor === 'number' ? { sizeFactor: +result.sizeFactor.toFixed(4) } : {}),
+            ...(result.ruleVersion ? { ruleVersion: result.ruleVersion } : {}),
             caughtAt: Date.now()
         };
     }
@@ -1378,10 +1389,11 @@
         if (!p || !Array.isArray(p.aquarium) || p.aquarium.length === 0) return 0;
         const upg = getAquariumUpgradeInfo(p.aquariumLevel);
         let sum = 0;
+        const shinyIncomeMult = (WWF.ECONOMY_CONSTANTS && WWF.ECONOMY_CONSTANTS.AQUARIUM_SHINY_INCOME_MULT) || 1.5;
         for (const item of p.aquarium) {
             const rInfo = (WWF.RARITIES && WWF.RARITIES[item.rarity]) || { aquariumIncome: 6 };
             const baseIncome = rInfo.aquariumIncome || 6;
-            const shinyMult = item.isShiny ? 1.8 : 1.0;
+            const shinyMult = item.isShiny ? shinyIncomeMult : 1.0;
             sum += baseIncome * shinyMult;
         }
         return Math.round(sum * (upg.incomeMult || 1.0));
